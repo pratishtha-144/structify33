@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generateBRD } from '../../gemini';
-import { UploadCloud, Mail, FileUp, X, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { generateDemoBRD } from '../../gemini';
+import { UploadCloud, Mail, FileUp, X, CheckCircle2, Loader2, Sparkles, FlaskConical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -169,32 +169,36 @@ export default function UploadInterface({ onGenerate }: { onGenerate: () => void
     setError(null);
     setStatusIdx(0);
 
-    // Animate through status messages while Gemini processes
+    // Cycle through status labels to look realistic
     const interval = setInterval(() => {
       setStatusIdx((prev) => (prev < STATUS_STEPS.length - 1 ? prev + 1 : prev));
-    }, 3000);
+    }, 900);
 
     try {
-      // Read all uploaded file contents as plain text
+      // Read uploaded file contents (if any) for personalisation
       const allFileObjects = [
         ...transcripts.map((f) => ({ label: 'Meeting Transcript', file: f.rawFile })),
         ...emails.map((f) => ({ label: 'Email', file: f.rawFile })),
         ...docs.map((f) => ({ label: 'Project Document', file: f.rawFile })),
       ];
 
-      const contentParts = await Promise.all(
-        allFileObjects.map(async ({ label, file }) => {
-          const text = await readFileAsText(file);
-          return `--- [${label}: ${file.name}] ---\n${text}`;
-        })
-      );
+      let combinedText = '';
+      if (allFileObjects.length > 0) {
+        const contentParts = await Promise.all(
+          allFileObjects.map(async ({ label, file }) => {
+            const text = await readFileAsText(file);
+            return `--- [${label}: ${file.name}] ---\n${text}`;
+          })
+        );
+        combinedText = contentParts.join('\n\n');
+      }
 
-      const combinedText = contentParts.join('\n\n');
-      console.log('[Structify] Combined content length:', combinedText.length, 'chars');
-
-      // generateBRD returns plain text — store it directly
-      const brdText = await generateBRD(combinedText);
+      // ── DEMO MODE: instant structured BRD, no API call ──
+      // Simulate a realistic AI processing delay
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+      const brdText = generateDemoBRD(combinedText);
       sessionStorage.setItem('brd_text', brdText);
+      sessionStorage.setItem('brd_mode', 'demo');
 
       clearInterval(interval);
       onGenerate();
@@ -210,9 +214,16 @@ export default function UploadInterface({ onGenerate }: { onGenerate: () => void
 
   return (
     <div className="max-w-6xl mx-auto py-8">
-      <div className="mb-12">
-        <h2 className="text-3xl font-bold tracking-tight mb-2 text-white">Data Ingestion Engine</h2>
-        <p className="text-gray-400">Upload unstructured project data from various sources to begin intelligent BRD generation.</p>
+      <div className="mb-12 flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight mb-2 text-white">Data Ingestion Engine</h2>
+          <p className="text-gray-400">Upload unstructured project data from various sources to begin intelligent BRD generation.</p>
+        </div>
+        {/* Demo Mode Badge */}
+        <div className="flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-full">
+          <FlaskConical className="w-4 h-4 text-amber-400" />
+          <span className="text-amber-300 text-sm font-semibold tracking-wide">Demo Mode Active</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
@@ -260,10 +271,7 @@ export default function UploadInterface({ onGenerate }: { onGenerate: () => void
             >
               <button
                 onClick={handleGenerate}
-                disabled={totalFiles === 0}
-                className={`glow-button group relative flex items-center justify-center space-x-3 bg-gradient-to-r from-brand-600 to-purple-600 outline-none text-white font-semibold text-lg px-12 py-5 rounded-2xl transition-all shadow-xl
-                  ${totalFiles === 0 ? 'opacity-50 cursor-not-allowed grayscale from-gray-700 to-gray-800' : 'hover:scale-105 shadow-brand-500/30'}
-                `}
+                className="glow-button group relative flex items-center justify-center space-x-3 bg-gradient-to-r from-brand-600 to-purple-600 outline-none text-white font-semibold text-lg px-12 py-5 rounded-2xl transition-all shadow-xl hover:scale-105 shadow-brand-500/30"
               >
                 <Sparkles className="w-6 h-6 text-brand-200 group-hover:text-white transition-colors animate-pulse" />
                 <span>Generate Structured BRD</span>
@@ -273,11 +281,9 @@ export default function UploadInterface({ onGenerate }: { onGenerate: () => void
                   </span>
                 )}
               </button>
-              {totalFiles === 0 && (
-                <p className="mt-4 text-sm text-gray-500 font-medium tracking-wide">
-                  Upload at least 1 file to begin AI analysis
-                </p>
-              )}
+              <p className="mt-4 text-xs text-gray-500 font-medium tracking-wide">
+                {totalFiles === 0 ? '🧪 No files needed — Demo Mode generates a sample BRD instantly' : `${totalFiles} file${totalFiles > 1 ? 's' : ''} uploaded — Demo BRD will incorporate your content`}
+              </p>
             </motion.div>
           ) : (
             <motion.div

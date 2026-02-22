@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Download, FileDown, Edit3, CheckCircle2, AlertTriangle, Loader2, User, Users } from 'lucide-react';
+import { Download, FileDown, Edit3, CheckCircle2, AlertTriangle, Loader2, FlaskConical } from 'lucide-react';
 
 // Parse the plain-text BRD (with ## Section headers) into a key-value map
 function parseBRDText(text: string): Record<string, string> {
@@ -80,12 +80,15 @@ function extractRequirements(text: string) {
 export default function BRDView() {
   const [sections, setSections] = useState<Record<string, string> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('brd_text');
+    const mode   = sessionStorage.getItem('brd_mode');
     if (stored) {
       setSections(parseBRDText(stored));
     }
+    setIsDemo(mode === 'demo');
     setLoading(false);
   }, []);
 
@@ -126,11 +129,17 @@ export default function BRDView() {
   return (
     <div className="max-w-5xl mx-auto pb-24 relative">
       {/* Action Bar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between bg-[#0a0a10]/80 backdrop-blur-md py-4 px-6 rounded-2xl border border-white/10 mb-8 shadow-2xl">
-        <div>
+      <div className="sticky top-0 z-30 flex items-center justify-between bg-[#0a0a10]/80 backdrop-blur-md py-4 px-6 rounded-2xl border border-white/10 mb-8 shadow-2xl flex-wrap gap-3">
+        <div className="flex items-center space-x-3">
           <h2 className="text-xl font-bold text-white tracking-wide line-clamp-1">
             {projectName} <span className="text-brand-400">v1.0</span>
           </h2>
+          {isDemo && (
+            <div className="flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full">
+              <FlaskConical className="w-3 h-3 text-amber-400" />
+              <span className="text-amber-300 text-xs font-semibold tracking-wide">Demo Mode</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center space-x-3">
           <button className="flex items-center space-x-2 text-sm font-medium text-gray-300 hover:text-white glass px-4 py-2 rounded-lg transition-colors">
