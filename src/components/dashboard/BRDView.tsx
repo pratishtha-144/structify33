@@ -1,40 +1,79 @@
-import { Download, FileDown, Edit3 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Download, FileDown, Edit3, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import type { BRDData, Stakeholder, FunctionalRequirement } from '../../gemini';
 
-interface BRDViewProps {
-  content: string;
-}
+const influenceColor: Record<string, string> = {
+  High: 'bg-red-500/20 text-red-400',
+  Medium: 'bg-yellow-500/20 text-yellow-400',
+  Low: 'bg-green-500/20 text-green-400',
+};
 
-export default function BRDView({ content }: BRDViewProps) {
-  const navigate = useNavigate();
+const ConfidenceBadge = ({ score }: { score: number }) => (
+  <div className="flex items-center space-x-1 bg-brand-500/20 text-brand-300 px-2 py-0.5 rounded text-xs font-semibold border border-brand-500/30">
+    <CheckCircle2 className="w-3 h-3" />
+    <span>{score}% Confidence</span>
+  </div>
+);
 
-  // Split the raw AI text into paragraphs for clean rendering
-  const paragraphs = content
-    ? content
-        .split(/\n{2,}/)
-        .map((p) => p.trim())
-        .filter(Boolean)
-    : [];
+const BulletItem = ({ children }: { children: React.ReactNode }) => (
+  <li className="flex items-start space-x-3">
+    <span className="w-1.5 h-1.5 mt-2.5 rounded-full bg-brand-500 flex-shrink-0" />
+    <span className="text-gray-400 leading-relaxed">{children}</span>
+  </li>
+);
+
+export default function BRDView() {
+  const [brd, setBrd] = useState<BRDData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem('brd_data');
+    if (stored) {
+      try {
+        setBrd(JSON.parse(stored) as BRDData);
+      } catch (e) {
+        console.error('[BRDView] Failed to parse stored BRD data:', e);
+      }
+    }
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-32 text-gray-400">
+        <Loader2 className="w-10 h-10 animate-spin mb-4 text-brand-400" />
+        <p>Loading BRD...</p>
+      </div>
+    );
+  }
+
+  if (!brd) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-32 text-center text-gray-400 space-y-4">
+        <div className="text-5xl">📄</div>
+        <h3 className="text-xl font-semibold text-white">No BRD Generated Yet</h3>
+        <p className="text-sm max-w-sm">Upload your project documents on the upload page and click "Generate Structured BRD" to see AI-generated output here.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto pb-24 relative">
       {/* Action Bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between bg-[#0a0a10]/80 backdrop-blur-md py-4 px-6 rounded-2xl border border-white/10 mb-8 shadow-2xl">
-        <h2 className="text-xl font-bold text-white tracking-wide">
-          Generated BRD <span className="text-brand-400">v1.0</span>
-        </h2>
+        <div>
+          <h2 className="text-xl font-bold text-white tracking-wide">
+            {brd.projectName || 'Generated BRD'}{' '}
+            <span className="text-brand-400">{brd.version ? `v${brd.version}` : 'v1.0'}</span>
+          </h2>
+        </div>
 
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center space-x-2 text-sm font-medium text-gray-300 hover:text-white glass px-4 py-2 rounded-lg transition-colors"
-          >
+          <button className="flex items-center space-x-2 text-sm font-medium text-gray-300 hover:text-white glass px-4 py-2 rounded-lg transition-colors">
             <Edit3 className="w-4 h-4" />
-            <span>New BRD</span>
+            <span>Edit Mode</span>
           </button>
-
-          <div className="h-6 w-px bg-white/10 mx-1"></div>
-
+          <div className="h-6 w-px bg-white/10 mx-1" />
           <button className="flex items-center space-x-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 border border-white/10 px-4 py-2 rounded-lg transition-colors">
             <FileDown className="w-4 h-4" />
             <span>DOCX</span>
@@ -46,76 +85,197 @@ export default function BRDView({ content }: BRDViewProps) {
         </div>
       </div>
 
-      {/* BRD Content */}
-      {!content ? (
-        <div className="glass-card p-12 flex flex-col items-center justify-center text-center min-h-[400px]">
-          <p className="text-gray-400 text-lg">No BRD generated yet.</p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="mt-6 px-6 py-3 bg-brand-600 hover:bg-brand-500 rounded-xl text-white font-medium transition-colors"
-          >
-            Go to Upload
-          </button>
-        </div>
-      ) : (
-        <div className="glass-card p-8 space-y-6 relative z-10">
-          {paragraphs.map((para, idx) => {
-            // Detect markdown heading patterns like "## Section" or "**Section**"
-            const headingMatch = para.match(/^#{1,3}\s+(.+)$/);
-            const boldLineMatch = para.match(/^\*\*(.+)\*\*$/);
+      <div className="space-y-10 relative z-10">
 
-            if (headingMatch) {
-              return (
-                <h3
-                  key={idx}
-                  className="text-xl font-bold text-white mt-8 first:mt-0 border-b border-white/10 pb-3"
-                >
-                  {headingMatch[1]}
-                </h3>
-              );
-            }
+        {/* 1. Executive Summary */}
+        {brd.executiveSummary && (
+          <section id="exec-summary" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">1. Executive Summary</h3>
+              <ConfidenceBadge score={95} />
+            </div>
+            <p className="leading-relaxed text-gray-400">{brd.executiveSummary}</p>
+          </section>
+        )}
 
-            if (boldLineMatch) {
-              return (
-                <h4 key={idx} className="text-lg font-semibold text-brand-300">
-                  {boldLineMatch[1]}
-                </h4>
-              );
-            }
+        {/* 2. Business Objectives */}
+        {brd.businessObjectives?.length > 0 && (
+          <section id="biz-objectives" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">2. Business Objectives</h3>
+              <ConfidenceBadge score={90} />
+            </div>
+            <ul className="space-y-3">
+              {brd.businessObjectives.map((obj, i) => (
+                <BulletItem key={i}>{obj}</BulletItem>
+              ))}
+            </ul>
+          </section>
+        )}
 
-            // Bullet list block
-            if (para.includes('\n') && para.split('\n').every((l) => l.match(/^[-*•]\s/))) {
-              return (
-                <ul key={idx} className="space-y-2 pl-2">
-                  {para.split('\n').map((line, lIdx) => (
-                    <li key={lIdx} className="flex items-start text-gray-300 leading-relaxed">
-                      <span className="w-1.5 h-1.5 mt-2 rounded-full bg-brand-500 mr-3 flex-shrink-0"></span>
-                      <span>{line.replace(/^[-*•]\s/, '')}</span>
-                    </li>
+        {/* 3. Stakeholders */}
+        {brd.stakeholders?.length > 0 && (
+          <section id="stakeholders" className="glass-card p-8 group overflow-hidden">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">3. Stakeholder Analysis</h3>
+              <ConfidenceBadge score={92} />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-white/10 text-gray-400 text-sm">
+                    <th className="py-3 px-4 font-medium">Name</th>
+                    <th className="py-3 px-4 font-medium">Role</th>
+                    <th className="py-3 px-4 font-medium">Influence</th>
+                    <th className="py-3 px-4 font-medium">Interest</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {brd.stakeholders.map((s: Stakeholder, i: number) => (
+                    <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-4 px-4 font-medium text-white">{s.name}</td>
+                      <td className="py-4 px-4 text-gray-400">{s.role}</td>
+                      <td className="py-4 px-4">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${influenceColor[s.influence] ?? 'bg-white/10 text-gray-300'}`}>
+                          {s.influence}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${influenceColor[s.interest] ?? 'bg-white/10 text-gray-300'}`}>
+                          {s.interest}
+                        </span>
+                      </td>
+                    </tr>
                   ))}
-                </ul>
-              );
-            }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
-            // Inline bullet line
-            if (para.match(/^[-*•]\s/)) {
-              return (
-                <div key={idx} className="flex items-start text-gray-300 leading-relaxed">
-                  <span className="w-1.5 h-1.5 mt-2 rounded-full bg-brand-500 mr-3 flex-shrink-0"></span>
-                  <span>{para.replace(/^[-*•]\s/, '')}</span>
+        {/* 4. Functional Requirements */}
+        {brd.functionalRequirements?.length > 0 && (
+          <section id="func-reqs" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">4. Functional Requirements</h3>
+              <ConfidenceBadge score={88} />
+            </div>
+            <div className="space-y-4">
+              {brd.functionalRequirements.map((req: FunctionalRequirement, i: number) => (
+                <div key={i} className="p-5 rounded-xl bg-white/[0.03] border border-white/5 hover:border-brand-500/30 transition-colors">
+                  <div className="flex justify-between items-start mb-2 flex-wrap gap-2">
+                    <span className="text-brand-400 font-mono text-sm">{req.id}</span>
+                    {req.ambiguity && (
+                      <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-xs font-semibold">
+                        Contains Ambiguity
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-white font-medium mb-2">{req.title}</p>
+                  <p className="text-sm text-gray-400 leading-relaxed">{req.description}</p>
+                  {req.ambiguity && (
+                    <div className="mt-3 text-xs text-yellow-200/70 flex items-start space-x-2 bg-yellow-500/10 p-2 rounded">
+                      <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                      <span>AI Note: {req.ambiguity}</span>
+                    </div>
+                  )}
                 </div>
-              );
-            }
+              ))}
+            </div>
+          </section>
+        )}
 
-            // Regular paragraph
-            return (
-              <p key={idx} className="text-gray-400 leading-relaxed whitespace-pre-wrap">
-                {para}
-              </p>
-            );
-          })}
-        </div>
-      )}
+        {/* 5. Non-Functional Requirements */}
+        {brd.nonFunctionalRequirements?.length > 0 && (
+          <section id="non-func-reqs" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">5. Non-Functional Requirements</h3>
+              <ConfidenceBadge score={85} />
+            </div>
+            <ul className="space-y-3">
+              {brd.nonFunctionalRequirements.map((nfr, i) => (
+                <BulletItem key={i}>{nfr}</BulletItem>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* 6. Assumptions */}
+        {brd.assumptions?.length > 0 && (
+          <section id="assumptions" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">6. Assumptions</h3>
+            </div>
+            <ul className="space-y-3">
+              {brd.assumptions.map((a, i) => (
+                <BulletItem key={i}>{a}</BulletItem>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* 7. Risks */}
+        {brd.risks?.length > 0 && (
+          <section id="risks" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">7. Risks</h3>
+              <ConfidenceBadge score={82} />
+            </div>
+            <ul className="space-y-3">
+              {brd.risks.map((r, i) => (
+                <li key={i} className="flex items-start space-x-3 p-3 rounded-xl bg-red-500/5 border border-red-500/10">
+                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-400 text-sm leading-relaxed">{r}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* 8. Timeline */}
+        {brd.timeline?.length > 0 && (
+          <section id="timeline" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">8. Timeline</h3>
+            </div>
+            <div className="space-y-4">
+              {brd.timeline.map((t, i) => (
+                <div key={i} className="flex items-start space-x-4">
+                  <div className="flex flex-col items-center">
+                    <div className="w-8 h-8 rounded-full bg-brand-500/20 border border-brand-500/40 flex items-center justify-center text-xs text-brand-300 font-bold flex-shrink-0">
+                      {i + 1}
+                    </div>
+                    {i < brd.timeline.length - 1 && <div className="w-px h-8 bg-brand-500/20 mt-1" />}
+                  </div>
+                  <div className="pb-6">
+                    <p className="font-semibold text-white text-sm mb-1">{t.phase}</p>
+                    <p className="text-gray-400 text-sm">{t.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 9. Success Metrics */}
+        {brd.successMetrics?.length > 0 && (
+          <section id="traceability" className="glass-card p-8 group">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white group-hover:text-brand-300 transition-colors">9. Success Metrics</h3>
+              <ConfidenceBadge score={87} />
+            </div>
+            <ul className="space-y-3">
+              {brd.successMetrics.map((m, i) => (
+                <li key={i} className="flex items-start space-x-3 p-3 rounded-xl bg-green-500/5 border border-green-500/10">
+                  <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-400 text-sm leading-relaxed">{m}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+      </div>
     </div>
   );
 }

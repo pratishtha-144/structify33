@@ -1,52 +1,70 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generateBRD } from "../../gemini";
-import { UploadCloud, FileText, Mail, FileUp, X, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { generateBRD } from '../../gemini';
+import { UploadCloud, Mail, FileUp, X, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const UploadBox = ({ title, icon, accept, files, setFiles }: any) => {
+interface UploadedFile {
+  name: string;
+  size: string;
+  status: 'uploading' | 'complete';
+  rawFile: File;
+}
+
+const UploadBox = ({
+  title,
+  icon,
+  accept,
+  files,
+  setFiles,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  accept: string;
+  files: UploadedFile[];
+  setFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
+}) => {
   const [isDragging, setIsDragging] = useState(false);
+
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming) return;
+    const newFiles: UploadedFile[] = Array.from(incoming).map((f) => ({
+      name: f.name,
+      size: (f.size / 1024).toFixed(1) + ' KB',
+      status: 'uploading',
+      rawFile: f,
+    }));
+    setFiles((prev) => [...prev, ...newFiles]);
+    setTimeout(() => {
+      setFiles((prev) =>
+        prev.map((f) =>
+          newFiles.find((nf) => nf.name === f.name) ? { ...f, status: 'complete' } : f
+        )
+      );
+    }, 1500);
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setIsDragging(true);
-    } else if (e.type === "dragleave") {
-      setIsDragging(false);
-    }
+    if (e.type === 'dragenter' || e.type === 'dragover') setIsDragging(true);
+    else if (e.type === 'dragleave') setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const newFiles = Array.from(e.dataTransfer.files).map(f => ({
-        name: f.name,
-        size: (f.size / 1024).toFixed(1) + ' KB',
-        status: 'uploading'
-      }));
-      setFiles([...files, ...newFiles]);
-      
-      // Simulate upload completion
-      setTimeout(() => {
-        setFiles((current: any) => 
-          current.map((f: any) => 
-            newFiles.find(nf => nf.name === f.name) ? { ...f, status: 'complete' } : f
-          )
-        );
-      }, 1500);
-    }
+    addFiles(e.dataTransfer.files);
   };
 
   const removeFile = (name: string) => {
-    setFiles(files.filter((f: any) => f.name !== name));
+    setFiles((prev) => prev.filter((f) => f.name !== name));
   };
 
   return (
     <div className="flex flex-col space-y-4 w-full relative">
-      <div 
+      <div
         className={`glass-card p-8 border-2 border-dashed transition-all duration-300 rounded-3xl flex flex-col items-center justify-center min-h-[220px] text-center
           ${isDragging ? 'border-brand-500 bg-brand-500/10 scale-105 shadow-2xl shadow-brand-500/20' : 'border-white/20 hover:border-brand-400 hover:bg-white/5'}
         `}
@@ -55,7 +73,7 @@ const UploadBox = ({ title, icon, accept, files, setFiles }: any) => {
         onDragOver={handleDrag}
         onDrop={handleDrop}
       >
-        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-brand-300 shadow-inner group-hover:scale-110 transition-transform">
+        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-brand-300 shadow-inner">
           {icon}
         </div>
         <h3 className="text-xl font-semibold mb-2 text-white">{title}</h3>
@@ -63,34 +81,23 @@ const UploadBox = ({ title, icon, accept, files, setFiles }: any) => {
         <div className="text-xs font-mono text-gray-500 bg-[#0a0a10]/50 px-3 py-1 rounded-md border border-white/5">
           Supported: {accept}
         </div>
-        
-        {/* Invisible file input covering the area */}
-        <input 
-          type="file" 
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-          onChange={(e) => {
-            if (e.target.files) {
-              const file = e.target.files[0];
-              const newFile = { name: file.name, size: (file.size / 1024).toFixed(1) + ' KB', status: 'uploading' };
-              setFiles([...files, newFile]);
-              setTimeout(() => {
-                setFiles((current: any) => current.map((f: any) => f.name === file.name ? { ...f, status: 'complete' } : f));
-              }, 1500);
-            }
-          }}
+        <input
+          type="file"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          onChange={(e) => addFiles(e.target.files)}
         />
       </div>
 
       <AnimatePresence>
         {files.length > 0 && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             className="space-y-2"
           >
-            {files.map((file: any, i: number) => (
-              <motion.div 
+            {files.map((file, i) => (
+              <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -107,14 +114,13 @@ const UploadBox = ({ title, icon, accept, files, setFiles }: any) => {
                     <span className="text-xs text-gray-500">{file.size}</span>
                   </div>
                 </div>
-                
                 {file.status === 'uploading' ? (
                   <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
-                    <motion.div 
+                    <motion.div
                       className="h-full bg-brand-500"
                       initial={{ width: 0 }}
-                      animate={{ width: "100%" }}
-                      transition={{ duration: 1.5, ease: "linear" }}
+                      animate={{ width: '100%' }}
+                      transition={{ duration: 1.5, ease: 'linear' }}
                     />
                   </div>
                 ) : (
@@ -131,59 +137,75 @@ const UploadBox = ({ title, icon, accept, files, setFiles }: any) => {
   );
 };
 
+const STATUS_STEPS = [
+  'Extracting key entities & stakeholders...',
+  'Mapping functional requirements...',
+  'Synthesizing success metrics & risks...',
+  'Finalizing and structuring BRD...',
+];
 
-export default function UploadInterface({ onGenerate }: { onGenerate: (brdText: string) => void }) {
+export default function UploadInterface({ onGenerate }: { onGenerate: () => void }) {
   const navigate = useNavigate();
-  const [transcripts, setTranscripts] = useState([]);
-  const [emails, setEmails] = useState([]);
-  const [docs, setDocs] = useState([]);
+  const [transcripts, setTranscripts] = useState<UploadedFile[]>([]);
+  const [emails, setEmails] = useState<UploadedFile[]>([]);
+  const [docs, setDocs] = useState<UploadedFile[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState('Initializing AI Engine...');
+  const [statusIdx, setStatusIdx] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const totalFiles = transcripts.length + emails.length + docs.length;
 
+  const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string ?? '');
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+      reader.readAsText(file);
+    });
+
   const handleGenerate = async () => {
     setIsGenerating(true);
-    setProgress(0);
+    setError(null);
+    setStatusIdx(0);
 
-    // Animate progress while real API call runs in parallel
-    let currentProgress = 0;
+    // Animate through status messages while Gemini processes
     const interval = setInterval(() => {
-      currentProgress += Math.random() * 8;
-      if (currentProgress < 30) setStatusText('Extracting key entities & stakeholders...');
-      else if (currentProgress < 60) setStatusText('Mapping functional requirements...');
-      else if (currentProgress < 85) setStatusText('Synthesizing success metrics & risks...');
-      else setStatusText('Finalising BRD structure...');
-      if (currentProgress >= 90) currentProgress = 90; // hold at 90 until API returns
-      setProgress(currentProgress);
-    }, 500);
-
-    const allText = `
-Transcripts:
-${JSON.stringify(transcripts)}
-
-Emails:
-${JSON.stringify(emails)}
-
-Documents:
-${JSON.stringify(docs)}
-`;
+      setStatusIdx((prev) => (prev < STATUS_STEPS.length - 1 ? prev + 1 : prev));
+    }, 3000);
 
     try {
-      const brd = await generateBRD(allText);
+      // Read all file contents as text
+      const allFileObjects = [
+        ...transcripts.map((f) => ({ label: 'Meeting Transcript', file: f.rawFile })),
+        ...emails.map((f) => ({ label: 'Email', file: f.rawFile })),
+        ...docs.map((f) => ({ label: 'Project Document', file: f.rawFile })),
+      ];
+
+      const contentParts = await Promise.all(
+        allFileObjects.map(async ({ label, file }) => {
+          const text = await readFileAsText(file);
+          return `--- [${label}: ${file.name}] ---\n${text}`;
+        })
+      );
+
+      const combinedText = contentParts.join('\n\n');
+
+      console.log('[Structify] Combined file content length:', combinedText.length, 'chars');
+
+      const brdData = await generateBRD(combinedText);
+
+      // Store result in sessionStorage so BRDView can access it across navigation
+      sessionStorage.setItem('brd_data', JSON.stringify(brdData));
+
       clearInterval(interval);
-      setProgress(100);
-      setStatusText('BRD ready!');
-      setTimeout(() => {
-        onGenerate(brd);
-        navigate('/dashboard/view');
-      }, 800);
+      onGenerate();
+      navigate('/dashboard/view');
     } catch (err) {
       clearInterval(interval);
+      const msg = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('[Structify] BRD generation failed:', err);
+      setError(msg);
       setIsGenerating(false);
-      setStatusText('Error generating BRD. Please try again.');
-      console.error(err);
     }
   };
 
@@ -195,36 +217,42 @@ ${JSON.stringify(docs)}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-        <UploadBox 
-          title="Meeting Transcripts" 
-          icon={<UploadCloud className="w-8 h-8" />} 
+        <UploadBox
+          title="Meeting Transcripts"
+          icon={<UploadCloud className="w-8 h-8" />}
           accept=".txt, .pdf"
           files={transcripts}
           setFiles={setTranscripts}
         />
-        <UploadBox 
-          title="Project Emails" 
-          icon={<Mail className="w-8 h-8" />} 
+        <UploadBox
+          title="Project Emails"
+          icon={<Mail className="w-8 h-8" />}
           accept=".txt, .eml"
           files={emails}
           setFiles={setEmails}
         />
-        <UploadBox 
-          title="Existing Docs" 
-          icon={<FileUp className="w-8 h-8" />} 
+        <UploadBox
+          title="Existing Docs"
+          icon={<FileUp className="w-8 h-8" />}
           accept=".pdf, .docx"
           files={docs}
           setFiles={setDocs}
         />
       </div>
 
-      <div className="flex flex-col items-center justify-center mt-12 bg-white/[0.02] border border-white/5 p-12 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-        {/* Glow behind button */}
+      {error && (
+        <div className="mb-8 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium flex items-start space-x-3">
+          <span className="text-red-400 font-bold">⚠ Error:</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="flex flex-col items-center justify-center mt-4 bg-white/[0.02] border border-white/5 p-12 rounded-3xl backdrop-blur-sm relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-brand-600/20 blur-[100px] pointer-events-none rounded-full"></div>
 
         <AnimatePresence mode="wait">
           {!isGenerating ? (
-            <motion.div 
+            <motion.div
               key="generate-btn"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -253,7 +281,7 @@ ${JSON.stringify(docs)}
               )}
             </motion.div>
           ) : (
-            <motion.div 
+            <motion.div
               key="progress"
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -263,23 +291,19 @@ ${JSON.stringify(docs)}
                 <Loader2 className="w-8 h-8 text-brand-400 animate-spin relative z-10" />
                 <div className="absolute inset-0 bg-brand-500/30 blur-xl animate-pulse rounded-full"></div>
               </div>
-              
+
               <h3 className="text-xl font-semibold mb-2 text-white">Analyzing Requirements...</h3>
-              <p className="text-brand-300 text-sm mb-8 font-medium bg-brand-500/10 px-4 py-1.5 rounded-full border border-brand-500/20">{statusText}</p>
-              
+              <p className="text-brand-300 text-sm mb-8 font-medium bg-brand-500/10 px-4 py-1.5 rounded-full border border-brand-500/20">
+                {STATUS_STEPS[statusIdx]}
+              </p>
+
+              {/* Indeterminate shimmer bar (no fake % since timing is unknown) */}
               <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner">
-                <motion.div 
-                  className="h-full bg-gradient-to-r from-brand-500 via-purple-500 to-brand-400 rounded-full relative"
-                  style={{ width: `${progress}%` }}
-                >
-                  {/* Shimmer effect on progress bar */}
+                <div className="h-full w-full bg-gradient-to-r from-brand-500 via-purple-500 to-brand-400 rounded-full relative animate-[pulse_2s_ease-in-out_infinite]">
                   <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent)] animate-[shimmer_2s_infinite]"></div>
-                </motion.div>
+                </div>
               </div>
-              <div className="w-full flex items-center justify-between mt-3 text-xs text-gray-400 font-mono">
-                <span>Processing {totalFiles} inputs</span>
-                <span>{Math.round(progress)}% Complete</span>
-              </div>
+              <p className="mt-3 text-xs text-gray-500 font-mono">Processing {totalFiles} file{totalFiles > 1 ? 's' : ''} — This may take 10–30 seconds</p>
             </motion.div>
           )}
         </AnimatePresence>
