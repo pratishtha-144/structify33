@@ -1,29 +1,17 @@
-export async function generateBRD(text: string) {
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-return `
-Executive Summary:
-This project builds a food delivery platform.
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-Business Objectives:
-- Fast delivery
-- Secure payments
+const genAI = new GoogleGenerativeAI(API_KEY);
 
-Stakeholders:
-- Users
-- Admins
+export async function generateBRD(text: string): Promise<string> {
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+  });
 
-Functional Requirements:
-- User login
-- Order food
-- Track delivery
+  const result = await model.generateContent(
+    "Convert this into a structured BRD:\n" + text
+  );
 
-Risks:
-- Payment failures
-
-Timeline:
-Phase 1: Upload
-Phase 2: Processing
-Phase 3: BRD Generation
-`;
-
+  return result.response.text();
 }

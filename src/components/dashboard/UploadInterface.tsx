@@ -132,22 +132,34 @@ const UploadBox = ({ title, icon, accept, files, setFiles }: any) => {
 };
 
 
-export default function UploadInterface({ onGenerate }: { onGenerate: () => void }) {
+export default function UploadInterface({ onGenerate }: { onGenerate: (brdText: string) => void }) {
   const navigate = useNavigate();
   const [transcripts, setTranscripts] = useState([]);
   const [emails, setEmails] = useState([]);
   const [docs, setDocs] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState("Initializing AI Engine...");
+  const [statusText, setStatusText] = useState('Initializing AI Engine...');
 
   const totalFiles = transcripts.length + emails.length + docs.length;
 
   const handleGenerate = async () => {
+    setIsGenerating(true);
+    setProgress(0);
 
-  setIsGenerating(true);
+    // Animate progress while real API call runs in parallel
+    let currentProgress = 0;
+    const interval = setInterval(() => {
+      currentProgress += Math.random() * 8;
+      if (currentProgress < 30) setStatusText('Extracting key entities & stakeholders...');
+      else if (currentProgress < 60) setStatusText('Mapping functional requirements...');
+      else if (currentProgress < 85) setStatusText('Synthesizing success metrics & risks...');
+      else setStatusText('Finalising BRD structure...');
+      if (currentProgress >= 90) currentProgress = 90; // hold at 90 until API returns
+      setProgress(currentProgress);
+    }, 500);
 
-  const allText = `
+    const allText = `
 Transcripts:
 ${JSON.stringify(transcripts)}
 
@@ -158,15 +170,22 @@ Documents:
 ${JSON.stringify(docs)}
 `;
 
-  const brd = await generateBRD(allText);
-
-console.log(brd);
-
-setIsGenerating(false);
-
-navigate('/dashboard/view');
-
-};
+    try {
+      const brd = await generateBRD(allText);
+      clearInterval(interval);
+      setProgress(100);
+      setStatusText('BRD ready!');
+      setTimeout(() => {
+        onGenerate(brd);
+        navigate('/dashboard/view');
+      }, 800);
+    } catch (err) {
+      clearInterval(interval);
+      setIsGenerating(false);
+      setStatusText('Error generating BRD. Please try again.');
+      console.error(err);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto py-8">
