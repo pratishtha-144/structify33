@@ -4,6 +4,7 @@ import { generateBRD } from '../../gemini';
 import { UploadCloud, Mail, FileUp, X, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+
 interface UploadedFile {
   name: string;
   size: string;
@@ -174,7 +175,7 @@ export default function UploadInterface({ onGenerate }: { onGenerate: () => void
     }, 3000);
 
     try {
-      // Read all file contents as text
+      // Read all uploaded file contents as plain text
       const allFileObjects = [
         ...transcripts.map((f) => ({ label: 'Meeting Transcript', file: f.rawFile })),
         ...emails.map((f) => ({ label: 'Email', file: f.rawFile })),
@@ -189,13 +190,11 @@ export default function UploadInterface({ onGenerate }: { onGenerate: () => void
       );
 
       const combinedText = contentParts.join('\n\n');
+      console.log('[Structify] Combined content length:', combinedText.length, 'chars');
 
-      console.log('[Structify] Combined file content length:', combinedText.length, 'chars');
-
-      const brdData = await generateBRD(combinedText);
-
-      // Store result in sessionStorage so BRDView can access it across navigation
-      sessionStorage.setItem('brd_data', JSON.stringify(brdData));
+      // generateBRD returns plain text — store it directly
+      const brdText = await generateBRD(combinedText);
+      sessionStorage.setItem('brd_text', brdText);
 
       clearInterval(interval);
       onGenerate();
